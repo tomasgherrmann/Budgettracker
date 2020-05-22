@@ -1,0 +1,226 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[1]:
+
+
+#The expense tracker aims to track your expenses as well as income to gain an overview of your finances.
+
+#Import libraries with predefined functions
+
+import pandas as pd
+import numpy
+import matplotlib
+print(matplotlib.__version__)
+print(pd.__version__)
+print(numpy.__version__)
+
+import sqlite3 as db
+get_ipython().system(' pip install tabulate')
+from tabulate import tabulate
+
+
+# In[2]:
+
+
+#To carefully keep your data, a database is built with sql in which you can enter your data and access it when needed. 
+
+def init():
+    conn = db.connect("budget.db")
+    cur = conn.cursor()
+    sql = '''
+    create table if not exists master (
+        amount numeric,
+        name TEXT,
+        category TEXT,
+        date TEXT
+        )
+        '''
+    cur.execute(sql)
+    conn.commit()
+    
+init()
+
+
+# In[3]:
+
+
+#In a next step a function is built to enter your expenses/income 
+
+def log(amount, name, category):
+    from datetime import datetime
+    
+    date = str(datetime.now())
+    data = (amount, name, category, date)
+    conn = db.connect("spent.db")
+    cur = conn.cursor()
+    sql = '''
+    insert into master values (
+        {},
+        '{}',
+        '{}',
+        '{}'
+        )
+        '''.format(amount, name, category, date)
+    cur.execute(sql)
+    conn.commit()
+
+
+# In[4]:
+
+
+# These are some expenses/income we heard you had today, and already put in for you with the newly defined log-function
+
+log(-2.50, "Coffee", "Food & Beverages")
+log(-2.50, "Coffee", "Food & Beverages")
+log(-35, "Groceries", "Groceries")
+log(-12, "Lunch","Food & Beverages")
+log(-123.5, "Phone Bill","Media")
+log(43, "Refund train ticket","Refund")
+log(500, "Pocket Money","Salary")
+log(-200, "Flight to Berlin","Travel")
+
+
+# In[5]:
+
+
+# Here you can enter your own expenses with an easy to use input and the program will store this automatically in the database for you
+
+#Entering the amount while making sure it is in the right format
+
+amount=""
+while(type(amount)==str):
+    try:
+        amount=float(input('Enter the amount of your expense/income as a number, starting with a (-) for expenses:'))
+    except(ValueError):
+        print('Error - Please enter a number in the format (-)00.00')
+
+#Entering the description of the expense / income
+
+name=input('Enter the description to your expense/income:')
+
+#Entering the category of the expense / income while making sure you choose from the predefined list
+
+categories=['Food & Beverages','Groceries','Entertainment', 'Rent', 'Media', 
+            'Travel', 'Other expenses', 'Refund', 'Salary', 'Gift']
+print('Enter the category of your expense/income. Please choose only from the following:')
+for index,category in enumerate(categories):
+    print(index+1,category)
+
+
+category=""
+while(type(category)==str or not (category>0 and category<11)):
+    try:
+        category=int(input('Enter the number of your category. You can only enter integers from 1-10:'))
+    except(ValueError):
+        print()
+        
+#Finally, the created log function will save your input in a database
+
+log(amount,name,categories[category-1])
+
+
+# In[6]:
+
+
+#To get an overview of your expenses and income, the view function allows you to see a list of your in- and outflows overall
+
+def view(category=None):
+
+    conn = db.connect("spent.db")
+    cur = conn.cursor()
+    if category:
+        sql = '''
+        select * from "master" where "category" = '{}' 
+        '''.format(category)
+    else:
+        sql = '''
+        SELECT * FROM master 
+        '''.format(category)
+    cur.execute(sql)
+    results = cur.fetchall()
+
+    return results
+
+#if you want to view all the expenses, use the following function: 
+# print(view())
+
+#You can also enter a category and gain an overview of it
+category_view=int(input('Enter the category number you would like to gain an overview of: '))
+print(view(categories[category_view-1]))
+
+
+# In[7]:
+
+
+#This table will then further help you to gain an overview of your finances 
+
+
+headers = ["Amount", "Name", "Category","Date (yyyy,mm,dd) and Time (hh:mm:ss) "]
+
+print(tabulate(view(), headers=headers, tablefmt="grid"))
+
+#You can even view your expenses and income per category 
+category_table=int(input('Enter the category you would like to gain an overview of'))
+
+print("The expenses for the selected category are\n", tabulate(view(category=categories[category_view-1]), headers=headers, tablefmt="grid"))
+
+
+# In[8]:
+
+
+#Get the total amount of a category or whole list and calculate the future value with a compounded rate
+
+def view(category=None):
+    conn = db.connect("spent.db")
+    cur = conn.cursor()
+    if category:
+        sql = '''
+        select * from "master" where "category" = '{}' 
+        '''.format(category)
+        sqltotal = '''
+        select sum(amount) from "master" where "category" = '{}' 
+        '''.format(category)
+    else:
+        sql = '''
+        SELECT * FROM master 
+        '''.format(category)
+        sqltotal = '''
+        SELECT sum(amount) FROM master 
+        '''.format(category)
+    cur.execute(sql)
+    results = cur.fetchall()
+    cur.execute(sqltotal)
+    total_amount = cur.fetchone()[0]
+    print("the current total is",str(total_amount))
+    while True:
+        try:
+            i_rate = float(input("Insert monthly interest rate (ex. 4, neither with % nor divided by 100): "))
+        except ValueError:
+            print("Enter a valid rate, please try again")
+            continue
+        else:
+            break
+    while True:
+        try:
+            months = int(input("Insert the number of months: "))
+            if months<0:
+                months = int(input("Insert a positive number: "))
+        except ValueError:
+            print("Enter the number of months, please try again")
+            continue
+        else:
+            break
+    i_ratep=i_rate/100    
+    compound_value=total_amount*(1+i_ratep)**months
+    
+    print("Your value in", int(months), "months with an interest rate of",float(i_rate), "% is", str(compound_value))
+    
+view()
+
+
+# In[ ]:
+
+
+
+
